@@ -8,7 +8,7 @@ This is a simple Discord bot that judges gaming-related stuff with random verdic
 - Adds a humorous action like "Sent to low-priority queue."
 
 ## Setup
-1. Clone the repo: `git clone <your-repo-url>`
+1. Clone the repo: `git clone https://github.com/gfgago/judge-bot.git`
 2. Install deps: `npm install`
 3. Create `.env` with `TOKEN=your-discord-bot-token`
 4. Run: `node index.js`

@@ -1,7 +1,7 @@
 require('dotenv').config();
 const { Client, GatewayIntentBits, EmbedBuilder, Events } = require('discord.js');
 
-// Initialize the client with necessary intents
+// Initialize the Discord client with required gateway intents
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -10,6 +10,7 @@ const client = new Client({
     ]
 });
 
+// Tribunal outcome pools
 const verdicts = ["BANNED", "GG WP", "REPORTED", "CARRIED", "LAGGING", "HARDSTUCK", "CRITICAL HIT"];
 const actions = [
     "Sent to the low-priority queue for 24 hours.",
@@ -21,26 +22,26 @@ const actions = [
 ];
 const colors = [0xFF0000, 0x00FF00, 0xFFFF00, 0x0000FF, 0x9B59B6];
 
-// Simple in-memory storage for recent judgments (key = subject.toLowerCase())
+// Simple in-memory storage for judgments
+// Key = subject.toLowerCase(), value = verdict data
 const judgmentHistory = new Map();
 
-// Helper: get random item from array
+// Helper: return a random item from an array
 function getRandom(arr) {
     return arr[Math.floor(Math.random() * arr.length)];
 }
 
-// Event: Once the bot successfully connects to Discord
+// Event: Fired once the bot successfully connects to Discord
 client.once(Events.ClientReady, (readyClient) => {
     console.log(`⚖️  The Judge is online as ${readyClient.user.tag}!`);
 });
 
 // Event: Listen for messages sent in the server
 client.on(Events.MessageCreate, async (message) => {
-    // Ignore messages from other bots
-    if (message.author.bot) return;
+    // Ignore bot messages or messages without the command prefix
+    if (message.author.bot || !message.content.startsWith('!')) return;
 
-    if (!message.content.startsWith('!')) return;
-
+    // Parse command name and subject from the message
     const args = message.content.slice(1).trim().split(/ +/);
     const command = args.shift().toLowerCase();
     const subjectRaw = args.join(' ').trim();
@@ -55,7 +56,7 @@ client.on(Events.MessageCreate, async (message) => {
 
         const existing = judgmentHistory.get(subject);
 
-        // Check if subject have already been judged
+        // Check if the subject has already been judged
         if (existing) {
             if (existing.appealed) {
                 return message.reply(`**${subjectRaw}** has already been judged **and appealed**. Case closed.`);
@@ -64,7 +65,6 @@ client.on(Events.MessageCreate, async (message) => {
             }
         }
 
-        // Select random outcomes from our arrays
         const randomVerdict = getRandom(verdicts);
         const randomAction = getRandom(actions);
         const randomColor = getRandom(colors);
@@ -108,7 +108,7 @@ client.on(Events.MessageCreate, async (message) => {
 
         const previous = judgmentHistory.get(subject);
 
-        // Ensure the user provided something to appeal
+        // Ensure a prior judgment exists for this subject
         if (!previous) {
             return message.reply(`No previous judgment found for "${subjectRaw}". Judge it first!`);
         }
@@ -150,7 +150,7 @@ client.on(Events.MessageCreate, async (message) => {
         try {
             await message.channel.send({ embeds: [appealEmbed] });
 
-            // Mark as appealed (cannot appeal again) and update if changed
+            // Mark case as appealed (one-time only) and update final outcome
             judgmentHistory.set(subject, {
                 verdict: appealResult,
                 action: finalAction,
@@ -160,6 +160,32 @@ client.on(Events.MessageCreate, async (message) => {
         } catch (error) {
             console.error("Error sending appeal embed:", error);
         }
+    }
+
+    // !cases command
+    else if (command === 'cases') {
+        // Ensure court has cases
+        if (judgmentHistory.size === 0) {
+            return message.reply("The court is empty — no active cases right now! ⚖️");
+        }
+
+        const lines = [];
+
+        for (const [subject, data] of judgmentHistory) {
+            const status = data.appealed ? 'final (appealed)' : 'open for appeal';
+            lines.push(`**${subject}** → \`${data.verdict}\` — ${status}`);
+        }
+
+        // Construct the Discord Embed
+        const embed = new EmbedBuilder()
+            .setColor(0x5865F2)
+            .setTitle('⚖️ Active Judgments')
+            .setDescription(lines.join('\n'))
+            .setTimestamp();
+
+        message.channel.send({ embeds: [embed] }).catch(err => {
+            console.error(err);
+        });
     }
 });
 
